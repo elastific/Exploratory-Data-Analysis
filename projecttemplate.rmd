@@ -1,0 +1,525 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+TITLE by YOUR_NAME_HERE
+========================================================
+
+> **Tip**: You will see quoted sections like this throughout the template to
+help you construct your report. Make sure that you remove these notes before
+you finish and submit your project!
+
+> **Tip**: One of the requirements of this project is that your code follows
+good formatting techniques, including limiting your lines to 80 characters or
+less. If you're using RStudio, go into Preferences \> Code \> Display to set up
+a margin line to help you keep track of this guideline!
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+# install.packages("rmarkdown")
+# install.packages("ggplot2", dependencies = T) 
+# install.packages("dplyr", dependencies = T)
+# install.packages("GGally", dependencies = T)
+# install.packages('memisc', dependencies = T)
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+```
+
+```{r echo=FALSE, Univariate_Plots}
+
+
+
+suppressMessages(library(reshape2))
+suppressMessages(library(reshape2))
+suppressMessages(library(ggplot2))
+suppressMessages(library(dplyr))
+suppressMessages(library(maps))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(GGally))
+suppressMessages(library(scales))
+suppressMessages(library(memisc))
+suppressMessages(library(grid))
+suppressMessages(library(gridExtra))
+```
+
+
+This dataset contains complete loan data for all loans issued through the 2007-2015, including the current loan status (Current, Late, Fully Paid, etc.) and latest payment information. The file containing loan data through the "present" contains complete loan data for all loans issued through the previous completed calendar quarter. Additional features include credit scores, number of finance inquiries, address including zip codes, and state, and collections among others. The file is a matrix of about 890 thousand observations and 75 variables. A data dictionary is provided in a separate file. k
+
+
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+loan <- read.csv('loan.csv')
+head(loan)
+```
+
+```{r echo=FALSE}
+tble <- tbl_df(loan)
+```
+
+> **Tip**: Before you create any plots, it is a good idea to provide a short
+introduction into the dataset that you are planning to explore. Replace this
+quoted text with that general information!
+
+# Univariate Plots Section
+
+> **Tip**: In this section, you should perform some preliminary exploration of
+your dataset. Run some summaries of the data and create univariate plots to
+understand the structure of the individual variables in your dataset. Don't
+forget to add a comment after each plot or closely-related group of plots!
+There should be multiple code chunks and text sections; the first one below is
+just to help you get started.
+
+
+```{r echo=FALSE}
+glimpse(tble)
+```
+
+```{r}
+df<- tble[ , colSums(is.na(tble)) < length(tble)/2]
+head(df)
+```
+We first remove the columns that more than 50% of values are NaNs. As you can 
+see from the table above, we have 50 columns remaining. Let's focus on these 
+columns over the course of our EDA.
+
+
+```{r}
+factor_vars<- df[,sapply(df, is.factor)]
+head(factor_vars)
+```
+
+```{r}
+p1<- ggplot(data = df, aes(loan_amnt))+
+  geom_histogram(binwidth = 1000)
+p2<- ggplot(data = df, aes(loan_amnt))+
+  geom_density(fill= 'gray')
+grid.arrange(p1, p2, ncol = 2)
+```
+
+```{r}
+summary(df$loan_amnt)
+```
+As we can see from the table above, the loan amount varies between as little as
+$500 up to maximum of $35000. The mean of the loan amount is $14755 and as the 
+boxplot suggests, the majority of the loans are somewhere between $8000 - $20000.
+
+
+
+```{r}
+subset(df, !is.na(df$loan_status)) %>%
+  group_by(loan_status) %>%
+  summarise()
+```
+
+
+```{r}
+dataset.new <- filter(df, !loan_status %in% 
+                        c("Does not meet the credit policy. Status:Charged Off",
+                          "Does not meet the credit policy. Status:Fully Paid",
+                      "Default"))
+ggplot(data = dataset.new, aes(loan_status))+
+  geom_bar(position = 'dodge')+ 
+  labs(x = "Loan Status", title = "Distribution of Loan Status")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+```
+
+
+# Univariate Analysis
+
+> **Tip**: Now that you've completed your univariate explorations, it's time to
+reflect on and summarize what you've found. Use the questions below to help you
+gather your observations and add your own if you have other thoughts!
+
+### What is the structure of your dataset?
+
+### What is/are the main feature(s) of interest in your dataset?
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+### Did you create any new variables from existing variables in the dataset?
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+
+> **Tip**: Make sure that you leave a blank line between the start / end of
+each code block and the end / start of your Markdown text so that it is
+formatted nicely in the knitted text. Note as well that text on consecutive
+lines is treated as a single space. Make sure you have a blank line between
+your paragraphs so that they too are formatted for easy readability.
+
+
+# Bivariate Plots Section
+
+> **Tip**: Based on what you saw in the univariate plots, what relationships
+between variables might be interesting to look at in this section? Don't limit
+yourself to relationships between a main output feature and one of the
+supporting variables. Try to look at relationships between supporting variables
+as well.
+
+```{r echo=FALSE, Bivariate_Plots}
+p1 <- ggplot(data = df, aes(loan_amnt, color = grade))+
+  geom_histogram(binwidth = 1000)+
+  facet_grid(grade ~ .)
+p2 <- ggplot(data = df, aes(loan_amnt, color = grade, fill = grade))+
+  geom_density(binwidth = 1000)+
+  facet_grid(grade ~ .)
+grid.arrange(p1, p2, ncol = 2)
+```
+
+blah labalhslhsdlfhlfdhslfhksd
+
+
+```{r}
+l1 <- ggplot(data = subset(df, !is.na(int_rate)), aes(int_rate, color = grade))+
+  geom_histogram(bins = 50)+
+  facet_grid(grade ~ .)+
+  labs(title = "Interest Rate by Loan Grade")
+l2 <- ggplot(data = subset(df, !is.na(int_rate)), aes(int_rate, color = grade))+
+  geom_density(fill = 'SlateGray')+
+  facet_grid(grade ~ .)+
+  labs(title = "Interest Rate by Loan Grade")
+grid.arrange(l1, l2, ncol = 2) 
+```
+
+blah blah blah,...
+
+
+```{r}
+ggplot(data = subset(df, !is.na(annual_inc)), aes(x= annual_inc, y= id))+
+  geom_point(alpha = 1/10, position = position_jitter(h=0))+
+  labs(title = "Scatter Plot of Annual income by id")
+
+```
+The Scatter plot below shows the self reported annual income of all applicatnts. 
+Obviously there are so many outliers that could be due to inputting error or some
+other reasons. 
+
+# finding outliers
+
+```{r}
+annual_inc.na <- subset(df, !is.na(annual_inc))
+
+q3<- quantile(annual_inc.na$annual_inc, 0.75)
+q1<- quantile(annual_inc.na$annual_inc, 0.25)
+iqr.annual_inc <- (q3 - q1)
+range <- (q3 + 1.5 * iqr.annual_inc)
+annual_inc.new <- annual_inc.na %>%
+  filter(annual_inc < range)
+```
+
+We calculated the IQR (Interquartile Range) and decided to remove the outliers 
+from the analysis.we use the common measure of 1.5 X IQR beyond 3rd quartile as
+the outliers.
+
+
+```{r}
+summary(annual_inc.new$annual_inc)
+```
+now we have removed the outliers and show the summary of the new data set above:
+
+```{r}
+l1<- ggplot(data = annual_inc.new, aes(annual_inc))+
+  geom_histogram(binwidth = 1000)
+l2<- ggplot(data = annual_inc.new, aes(annual_inc))+
+  geom_density(fill= 'gray')
+l3<- ggplot(data = annual_inc.new, aes(y = annual_inc, x = 'id' ))+
+  geom_violin(scale= 'area')
+l4<- ggplot(data = annual_inc.new, aes(y = annual_inc, x = 'id' ))+
+  geom_boxplot(scale= 'area')
+
+grid.arrange(l1, l2, l3, l4, nrow = 2, ncol = 2)
+```
+
+Having removed the outliers, now we drew the same plots for Annual Income to
+get a better picture of the income of the customers.
+
+```{r}
+ggplot(data = annual_inc.new, aes(y = annual_inc, x = id, fill = grade, 
+                                  color = grade))+
+  geom_boxplot(alpha = 1/3)+
+  facet_grid(. ~ grade)+ 
+  labs(title = "Distribution (Box Plot) of Annual income by Loan Grade")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+blah blah blah,...
+
+```{r}
+df %>%
+  filter(!is.na(home_ownership))%>%
+  filter(! home_ownership %in% c("OTHER", "NONE", "ANY"))%>%
+  group_by(home_ownership)%>%
+  summarise(mean_amnt_loan = mean(loan_amnt),
+            mean_annual_inc = mean(annual_inc),
+            n=n())%>%
+  ungroup()%>%
+  arrange(desc(n))
+```
+
+
+
+```{r}
+ggplot(data = subset(df, (!is.na(home_ownership) & (! home_ownership %in% c("ANY", "NONE", "OTHER")))),
+       aes(home_ownership, fill = grade,color = grade))+
+  geom_bar()+ labs(title = "Distribution of Home Ownership by Loan Grade")
+```
+blah blah blah,...
+
+## purpose of loan
+
+```{r}
+df %>%
+  filter(!is.na(purpose))%>%
+  group_by(purpose)%>%
+  summarise(mean_annual_inc = mean(annual_inc),
+            mean_amnt_loan = mean(loan_amnt),
+            n=n())%>%
+  ungroup()%>%
+  arrange(desc(n))
+```
+
+
+
+
+```{r}
+ggplot(data = subset(df, !is.na(purpose)),
+       aes(purpose, fill = loan_status,color = loan_status))+
+  geom_bar()+ labs(title = "Distribution of Loan purpose")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+
+```{r}
+df %>%
+  filter(!is.na(verification_status))%>%
+  group_by(verification_status)%>%
+  summarise(mean_annual_inc = mean(annual_inc),
+            mean_amnt_loan = mean(loan_amnt),
+            n=n())%>%
+  ungroup()%>%
+  arrange(verification_status)
+```
+
+```{r}
+ggplot(data = subset(df, !is.na(verification_status)),
+       aes(verification_status, fill = loan_status,color = loan_status))+
+  geom_bar(position = "fill")+
+  labs(title = "Distribution of verification status by Loan Status")+
+  scale_y_continuous(labels = percent_format())
+```
+
+
+```{r}
+df %>%
+  filter(!is.na(grade))%>%
+  group_by(grade)%>%
+  summarise(mean_annual_inc = mean(annual_inc),
+            mean_amnt_loan = mean(loan_amnt),
+            n=n())%>%
+  ungroup()%>%
+  arrange(grade)
+```
+
+```{r}
+ggplot(data = subset(df, !is.na(grade)),
+       aes(grade, fill = loan_status,color = loan_status))+
+  geom_bar(position = "fill")+
+  labs(title = "Distribution of Loan Grade by Loan Status")+
+  scale_y_continuous(labels = percent_format())
+```
+
+# Creating Bins for Interest Rates, Loan Amounts, and Annual Income
+
+```{r}
+df <- transform(df, int_group=cut(int_rate,
+    breaks=c(0, 7.5, 10, 12.5, 15,20),
+      labels=c('0-7.5', '7.5-10', '10-12.5', '12.5-15', '15 and above')))
+
+df <- transform(df, loan_amnt_group=cut(loan_amnt,
+    breaks=c(0, 5000, 10000, 15000, 20000, 25000, 40000),
+      labels=c('0-5000', '5000-10000', '10000-15000', '15000-20000', '20000-25000','25000 and above')))
+
+df <- transform(df, ann_income_group=cut(annual_inc,
+    breaks=c(0, 25000, 50000, 75000, 100000, 1000000),
+      labels=c('0-25000', '25000-50000', '50000-75000', '75000-100000', '100000 and above')))
+```
+
+blah blah blah...
+
+
+```{r}
+numerical_vars<- annual_inc.new[,sapply(annual_inc.new, is.numeric)]
+head(numerical_vars)
+```
+
+
+```{r}
+df <- transform(df, issue_d_str = toString(df$issue_d))
+head(df)
+```
+
+
+```{r}
+df %>%
+  mutate(df$issue_d, year = as.numeric(sapply(strsplit(toString(df$issue_d), "-"), "[[", 2)))
+```
+
+
+
+
+
+```{r}
+mydata <- na.omit(df)
+str(mydata)
+```
+
+
+
+
+
+
+
+
+
+
+
+## Some Scatter Plots to see if there is any relationships between different columns
+
+
+The average ratio of Annual income / Loan Amount 
+
+
+
+```{r}
+ggpairs(numerical_vars[, c(3, 4, 5, 8, 9, 18, 19)])
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Bivariate Analysis
+
+> **Tip**: As before, summarize what you found in your bivariate explorations
+here. Use the questions below to guide your discussion.
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+### Did you observe any interesting relationships between the other features \
+(not the main feature(s) of interest)?
+
+### What was the strongest relationship you found?
+
+
+# Multivariate Plots Section
+
+> **Tip**: Now it's time to put everything together. Based on what you found in
+the bivariate plots section, create a few multivariate plots to investigate
+more complex interactions between variables. Make sure that the plots that you
+create here are justified by the plots you explored in the previous section. If
+you plan on creating any mathematical models, this is the section where you
+will do that.
+
+```{r echo=FALSE, Multivariate_Plots}
+
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+### Were there any interesting or surprising interactions between features?
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the \
+strengths and limitations of your model.
+
+------
+
+# Final Plots and Summary
+
+> **Tip**: You've done a lot of exploration and have built up an understanding
+of the structure of and relationships between the variables in your dataset.
+Here, you will select three plots from all of your previous exploration to
+present here as a summary of some of your most interesting findings. Make sure
+that you have refined your selected plots for good titling, axis labels (with
+units), and good aesthetic choices (e.g. color, transparency). After each plot,
+make sure you justify why you chose each plot by describing what it shows.
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+
+```
+
+### Description One
+
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+
+```
+
+### Description Two
+
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+
+```
+
+### Description Three
+
+------
+
+# Reflection
+
+> **Tip**: Here's the final step! Reflect on the exploration you performed and
+the insights you found. What were some of the struggles that you went through?
+What went well? What was surprising? Make sure you include an insight into
+future work that could be done with the dataset.
+
+> **Tip**: Don't forget to remove this, and the other **Tip** sections before
+saving your final work and knitting the final report!
