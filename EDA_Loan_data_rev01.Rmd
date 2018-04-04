@@ -1,0 +1,642 @@
+---
+title: "EDA_Project"
+author: "Rahman Rahimi"
+date: "04 April 2018"
+output: 
+  html_document:
+    toc: TRUE
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center', include = TRUE, tidy = TRUE)
+```
+
+---
+Lending Club Loan Data by Rahman Rahimi
+========================================================
+------
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+# install.packages("rmarkdown")
+# install.packages("ggplot2", dependencies = T) 
+# install.packages("dplyr", dependencies = T)
+# install.packages("GGally", dependencies = T)
+# install.packages('memisc', dependencies = T)
+# install.packages('corrplot', dependencies = T)
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+```
+
+```{r echo=FALSE, Univariate_Plots}
+
+
+
+suppressMessages(library(reshape2))
+suppressMessages(library(reshape2))
+suppressMessages(library(ggplot2))
+suppressMessages(library(dplyr))
+suppressMessages(library(maps))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(GGally))
+suppressMessages(library(scales))
+suppressMessages(library(memisc))
+suppressMessages(library(grid))
+suppressMessages(library(gridExtra))
+suppressMessages(library(corrplot))
+suppressMessages(library(lubridate))
+```
+
+
+This dataset contains complete loan data for all loans issued through 2007-2015,
+including the current loan status (Current, Late, Fully Paid, etc.)
+and latest payment information. The file is a matrix of about 890 thousand 
+observations and 75 variables. A data dictionary is provided in a separate file.
+
+
+```{r results = 'hide', Load_the_Data}
+# Load the Data
+loan <- read.csv('loan.csv')
+head(loan)
+```
+
+```{r}
+tble <- tbl_df(loan)
+```
+
+
+# Univariate Plots Section
+
+In this section, we perform some preliminary exploration of our dataset. we run 
+some summaries of the data and create univariate plots to understand the
+structure of the individual variables in our dataset.
+
+
+```{r}
+glimpse(tble)
+```
+
+
+```{r results='markup'}
+df<- tble[ , colSums(is.na(tble)) < length(tble)/2]
+head(df)
+```
+
+We first remove the columns that more than 50% of values are NaNs. As you can 
+see from the table above, we have 50 columns remaining. Let's focus on these 
+columns over the course of our EDA.
+
+
+```{r results='hide'}
+factor_vars<- df[,sapply(df, is.factor)]
+head(factor_vars)
+```
+
+
+```{r results='hide'}
+numerical_vars<- df[,sapply(df, is.numeric)]
+head(numerical_vars)
+```
+
+Now, I have devide the entire dataset into 2 seperate ones, one for numeric
+columns and one for factor columns. The tables above show a head of each of these
+2 newly created dataframes.
+
+```{r  results='markup'}
+p1<- ggplot(data = df, aes(loan_amnt))+
+  geom_histogram(binwidth = 1000)
+p2<- ggplot(data = df, aes(loan_amnt))+
+  geom_density(fill= 'gray')
+grid.arrange(p1, p2, ncol = 2)
+```
+
+> Above, we can see the distribution of Loan Amount using 2 different plots.
+
+```{r results='markup'}
+summary(df$loan_amnt)
+```
+
+As we can see from the table above, the loan amount varies between as little as
+$500 up to maximum of $35000. The mean of the loan amount is $14755 and as the 
+boxplot suggests, the majority of the loans are somewhere between $8000 - $20000.
+There are a large number of loans of $35000 as well.
+
+
+```{r results='markup'}
+loan_stat_df<- subset(df, !is.na(df$loan_status)) %>%
+  group_by(loan_status) %>%
+  summarise(Number=n())
+loan_stat_df
+```
+
+Let us have a look at the Loans' Status. About 600 thousand loans are still
+current. About 200 thousand are fully paid and about 45 thousand loans are
+charged off. 
+
+
+```{r results='markup'}
+dataset.new <- filter(df, !loan_status %in% 
+                        c("Does not meet the credit policy. Status:Charged Off",
+                          "Does not meet the credit policy. Status:Fully Paid",
+                      "Default"))
+ggplot(data = dataset.new, aes(loan_status))+
+  geom_bar(position = 'dodge')+ 
+  labs(x = "Loan Status", title = "Distribution of Loan Status")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+# Univariate Analysis
+
+* **What is/are the main feature(s) of interest in your dataset?**
+
+A number of columns with Factor type and a the rest are continous or discrete
+form of numerical values.
+Among the numeric fields, the Loan Amount, Annual Income, Interest Rate are of
+particular interest.Of all the categorical fields (Factors), Home ownership,
+Loan Status, Loan Grade, Term, Verification Status are interesting.
+
+
+* **Did you create any new variables from existing variables in the dataset?**
+
+I have also added a ratio of Loan Amount / Annual Income at the end of the 
+DataFrame, This might give us some insight on what ratio is the most likely or
+most common range.
+
+* **Of the features you investigated, were there any unusual distributions? Did
+you perform any operations on the data to tidy, adjust, or change the form of
+the data? If so, why did you do this?**
+
+As we mentioned before, there are a number of columns with so many NaNs that 
+could not be helpfu, so we decided to remove them.
+
+
+# Bivariate and Multivariate Plots Section
+
+* **Based on what you saw in the univariate plots, what relationships between
+variables might be interesting to look at in this section?**
+
+* I was particularly interested in the relationship between `loan amount` and the 
+following fields:
++ Home Ownership
++ Employment Length
++ Loan Grade
++ Loan Status
++ Purpose
++ Interest Rate
++ Annula Income
++ Income-to-Loan-ratio
++ Verification Status
+Below, let us take a deeper look at these relationships:
+
+```{r results='markup', Bivariate_Plots}
+p1 <- ggplot(data = df, aes(loan_amnt, color = grade))+
+  geom_histogram(binwidth = 1000)+
+  facet_grid(grade ~ .)
+p2 <- ggplot(data = df, aes(loan_amnt, color = grade, fill = grade))+
+  geom_density(binwidth = 1000)+
+  facet_grid(grade ~ .)
+grid.arrange(p1, p2, ncol = 2)
+```
+
+First, we look at the distribution of `Loan Amount` by Loan `Grade`. As you can see
+majority of the loans are in `Grades A, B, and C`. The interesting observation
+here was that as we move from grade A to Grade G, the loan amount distribution
+becomes more homogeneous.
+
+```{r results='markup'}
+l1 <- ggplot(data = subset(df, !is.na(int_rate)), aes(int_rate, color = grade))+
+  geom_histogram(bins = 50)+
+  facet_grid(grade ~ .)+
+  labs(title = "Interest Rate by Loan Grade")
+l2 <- ggplot(data = subset(df, !is.na(int_rate)), aes(int_rate, color = grade))+
+  geom_density(fill = 'SlateGray')+
+  facet_grid(grade ~ .)+
+  labs(title = "Interest Rate by Loan Grade")
+grid.arrange(l1, l2, ncol = 2) 
+```
+
+Now, the distribution of `interest rates` by `Grade` is also presented above, as 
+you can see, the lowest interest rates apply to Grade A. So the more costly loans
+are in Grade G, F, E. 
+
+I am so curious to know to whome these good loans (Grade A) are granted and 
+what kind of obvious difference could be detected between good grades and bad
+grades loan holders.
+
+
+```{r results='markup'}
+ggplot(data = subset(df, !is.na(annual_inc)), aes(x= annual_inc, y= id))+
+  geom_point(alpha = 1/10, position = position_jitter(h=0))+
+  labs(title = "Scatter Plot of Annual income by id")
+
+```
+The Scatter plot below shows the `self reported annual income` of all applicants. 
+Obviously there are so many outliers that could be due to inputting error or some
+other reasons. 
+
+## finding outliers
+
+```{r results='markup'}
+annual_inc.na <- subset(df, !is.na(annual_inc))
+
+q3<- quantile(annual_inc.na$annual_inc, 0.75)
+q1<- quantile(annual_inc.na$annual_inc, 0.25)
+iqr.annual_inc <- (q3 - q1)
+range <- (q3 + 1.5 * iqr.annual_inc)
+
+
+annual_inc_new <- annual_inc.na %>%
+  filter(annual_inc < range)
+```
+
+We calculated the `IQR (Interquartile Range)` and decided to remove the outliers 
+from the analysis.we use the common measure of 1.5 X IQR beyond 3rd quartile as
+the outliers.
+
+
+```{r results='markup'}
+summary(annual_inc_new$annual_inc)
+```
+now we have removed the outliers and show the summary of the new data set above:
+
+
+```{r results='markup'}
+l1<- ggplot(data = annual_inc_new, aes(annual_inc))+
+  geom_histogram(binwidth = 5000)
+l2<- ggplot(data = annual_inc_new, aes(annual_inc))+
+  geom_density(fill= 'gray')
+l3<- ggplot(data = annual_inc_new, aes(y = annual_inc, x = 'id' ))+
+  geom_violin(scale= 'area')
+l4<- ggplot(data = annual_inc_new, aes(y = annual_inc, x = 'id' ))+
+  geom_boxplot(scale= 'area')
+
+grid.arrange(l1, l2, l3, l4, nrow = 2, ncol = 2)
+```
+
+Having removed the outliers, now we drew the same plots for Annual Income to
+get a better picture of the income of the customers.
+
+## Creating New Variables
+**we are going to create a new variable called `Income_to_loan_ratio` below:**
+
+```{r}
+
+annual_inc_new$Income_to_loan_ratio <- annual_inc_new$annual_inc/annual_inc_new$loan_amnt
+```
+
+
+```{r results='markup'}
+ggplot(data = annual_inc_new, aes(Income_to_loan_ratio))+
+  geom_density(fill= 'gray')+
+  coord_cartesian(xlim = c(0, 20))+
+  labs(title = "Distribution (Density Plot) of the ratio of Annual Income to Loan Amount")
+
+```
+
+so the majority of people have a self_reported annula income of approximately
+5 times the amount of loans they have been granted. 
+
+
+```{r results='markup'}
+ggplot(data = subset(df, ! home_ownership %in% c("ANY", "NONE", "OTHER")),
+       aes(y = home_ownership , purpose))+
+  geom_count(color = "Navy")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+**Let us have a look at the Home Ownership and Purpose of loans.**
+
+The plot above, shows the number of loans grouped by the Home Ownership and
+the purpose of the loan. Debt Consolidation is by far the most common purpose
+of loans. But the porportion is different among different types of home ownership.
+For example, the vast majority of Mortgage holders need loans for Debt 
+Consolidation and credit cards. People who own their homes either do not need 
+or do not apply for a loan through this website. As you can see, it is very
+uncommon for the home owners to get loans to pay their credit cards debt compared
+to the ones who either rent or paying mortgage.
+
+
+```{r results='markup'}
+ggplot(data = annual_inc_new, aes(y = annual_inc, x = id, fill = grade, 
+                                  color = grade))+
+  geom_boxplot(alpha = 1/3)+
+  facet_grid(. ~ grade)+ 
+  labs(title = "Distribution (Box Plot) of Annual income by Loan Grade")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+Box plots of Annual Income by Loan Grade are shown above.Looking at the median
+line of the box plots, we see a downtrend from Grade A to D and then a slight
+uptrend towards G.The Grade D has the narrowest range among all other grades.
+
+## Home Ownership
+
+```{r results='markup'}
+df %>%
+  filter(!is.na(home_ownership))%>%
+  filter(! home_ownership %in% c("OTHER", "NONE", "ANY"))%>%
+  group_by(home_ownership)%>%
+  summarise(mean_amnt_loan = mean(loan_amnt),
+            mean_annual_inc = mean(annual_inc),
+            n=n())%>%
+  ungroup()%>%
+  arrange(desc(n))
+```
+
+Table above shows the average amount of loans and average annual income by 
+different Home Ownership status. More than 443 thousand loans were granted to
+those with a mortgaged home, but only 87 thosand to those who own their home.
+A clear difference between the annual inmcome of those with different home
+ownership is also shown.
+
+
+```{r results='markup'}
+ggplot(data = subset(df, (!is.na(home_ownership) & (! home_ownership %in% c("ANY", "NONE", "OTHER")))),
+       aes(home_ownership, fill = grade,color = grade))+
+  geom_bar()+ labs(title = "Distribution of Home Ownership by Loan Grade")
+```
+
+Here I brought the plot of Home Ownership by Loan Grade as a stacked bar chart.
+The majority of loans are granted to those with Mortgage and grade B and C are
+the most common ones.
+
+## purpose of loan
+
+```{r results='markup'}
+df %>%
+  filter(!is.na(purpose))%>%
+  group_by(purpose)%>%
+  summarise(mean_annual_inc = mean(annual_inc),
+            mean_amnt_loan = mean(loan_amnt),
+            n=n())%>%
+  ungroup()%>%
+  arrange(desc(n))
+```
+
+The table above, depicted the Average amount of loan and average annual income
+based on the purpose of the loan. As we can see more than 520 thousand loans were
+granted for debt consolidation and more than 200 thousand for credit card. For 
+those with highest average annual income ($90271/year), home improvment is the
+most common purpose, while those who have got loans for vacation have the lowest
+average annual income!
+
+
+```{r results='markup'}
+ggplot(data = subset(df, !is.na(purpose)),
+       aes(purpose, fill = loan_status,color = loan_status))+
+  geom_bar()+ labs(title = "Distribution of Loan purpose")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Now let us have a look at what have happened to the loans with different
+purposes. The plot above, shows the distribution of of loan purposes by loan
+status.
+
+```{r results='markup'}
+df %>%
+  filter(!is.na(verification_status))%>%
+  group_by(verification_status)%>%
+  summarise(mean_annual_inc = mean(annual_inc),
+            mean_amnt_loan = mean(loan_amnt),
+            n=n())%>%
+  ungroup()%>%
+  arrange(verification_status)
+```
+
+I am curious to know what is the average annual income and average loan amount
+granted based on the verification status. As we can see for those whose loans 
+could not be verified, the average amount of loan is the lowest and if it was
+verified they got the highest amount of loan on average which is exactly what 
+we can expect.
+
+```{r results='markup'}
+ggplot(data = subset(df, !is.na(verification_status)),
+       aes(verification_status, fill = loan_status,color = loan_status))+
+  geom_bar(position = "fill")+
+  labs(title = "Distribution of verification status by Loan Status")+
+  scale_y_continuous(labels = percent_format())
+```
+
+Based on the plot above, a very interesting observation is that  the highest
+percentage of loans with "Charged Off" Status is from those whose verification
+status is "Not Verified" and interestingly, those hwo could verify their status, 
+have the highest percentage of "Charged off" loans.
+
+
+```{r results='markup'}
+df %>%
+  filter(!is.na(grade))%>%
+  group_by(grade)%>%
+  summarise(mean_annual_inc = mean(annual_inc),
+            mean_amnt_loan = mean(loan_amnt),
+            n=n())%>%
+  ungroup()%>%
+  arrange(grade)
+```
+
+Let us see what are the average amount of loans granted and the average annual
+income based on the loan grades. So the highest average amount of loans granted 
+is on Grade G with about 5400 cases which is of course a very low number compared
+to say Grade B with more than 250 thousand cases. For grade B with the highest
+number of loans granted, the average amount of loan is $13642.
+
+```{r results='markup'}
+ggplot(data = subset(df, !is.na(grade)),
+       aes(grade, fill = loan_status,color = loan_status))+
+  geom_bar(position = "fill")+
+  labs(title = "Distribution of Loan Grade by Loan Status")+
+  scale_y_continuous(labels = percent_format())
+```
+
+another interesting plot is shown above, this distribution plot gives the
+percentage of loan status based on their grades. So, as we expect, grade G has
+the highest percentage of loans with "Charged off" status and it shows a
+steady downtrend as we move towards the better grades (A and B). 
+Moreover, the same trend is evident for the late payments. For example the
+highest percentage of late payments are among the loans with grade G.
+
+```{r results='markup'}
+df %>%
+  filter(!is.na(loan_status))%>%
+  group_by(loan_status)%>%
+  summarise(mean_annual_inc = mean(annual_inc),
+            mean_amnt_loan = mean(loan_amnt),
+            n=n())%>%
+  ungroup()%>%
+  arrange(loan_status)
+```
+
+
+## Creating Bins for Interest Rates, Loan Amounts, and Annual Income
+
+```{r results='markup'}
+df <- transform(df, int_group=cut(int_rate,
+    breaks=c(0, 7.5, 10, 12.5, 15,20),
+      labels=c('0-7.5', '7.5-10', '10-12.5', '12.5-15', '15 and above')))
+
+df <- transform(df, loan_amnt_group=cut(loan_amnt,
+    breaks=c(0, 5000, 10000, 15000, 20000, 25000, 40000),
+      labels=c('0-5000', '5000-10000', '10000-15000', '15000-20000', '20000-25000','25000 and above')))
+
+df <- transform(df, ann_income_group=cut(annual_inc,
+    breaks=c(0, 25000, 50000, 75000, 100000, 1000000),
+      labels=c('0-25000', '25000-50000', '50000-75000', '75000-100000', '100000 and above')))
+```
+
+We just binned the Interest Rate, Loan Amount, and Annual income columns and 
+converted them into Factor values.
+
+
+## Correlation Analysis Using corrplot
+
+```{r results='markup'}
+new_list <- numerical_vars[c('loan_amnt', 'int_rate', 'funded_amnt', 'installment')]
+M <- cor(new_list)
+corrplot(M, method = "color")
+```
+
+
+```{r results='markup'}
+corrplot(M, method = "number", col='black')
+```
+
+Above, we have provided the correlation plots for 4 numeric columns of:
+'loan_amnt', 'int_rate', 'funded_amnt', 'installment'.
+
+
+**converting Issue_d column to date Format:**
+
+```{r results='markup'}
+df$dates <- dmy(paste0("01-", df$issue_d))
+df_amount_grade<- df %>%
+  group_by(dates, grade)%>%
+  summarise(Loan_Amount = sum(loan_amnt), n=n())
+```
+
+
+```{r results='markup'}
+ggplot(df_amount_grade, aes(x = dates, y = Loan_Amount))+
+  geom_area(aes(fill=grade))+
+  xlab("Issue Date")+
+  labs(title = "Total $ Amount of loans grouped by Grade")
+```
+
+let us investigate how the total amount of loans has changed over the time.
+The plot above shows the total dollar amount of loans granted from 2008 untill
+2016.There has been some spikes and some very sharp declines that might be due
+to some technical problem or lack of data or perhaps some seasonal trend 
+exisiting in the market.
+
+
+```{r results='markup'}
+ggplot(data = subset(df, !is.na(addr_state)),
+       aes(x = addr_state, y = loan_amnt, fill = addr_state))+
+  stat_summary(fun.y="sum", geom="bar")+
+  coord_flip()+
+  labs(y ="Total Loan Amount",x="State",title="Bar Chart of loan amount for each state")
+
+```
+
+The amount of loans granted by state is presented above. California is by far
+the first state in terms of the total amount of loans.
+------
+
+# Bivariate and Multivariate Analysis
+
+* **The relationships I have observed**
+
+I think, most of the finding align with what we could expect before running
+doing any analysis, such as the fact that the higher the income, the easier it
+gets to get a loan, or the cheapest it gets for you to secure a loan. However,
+there was one interesting finding here, my observation showed that  the highest
+percentage of loans with "Charged Off" Status is from those whose verification
+status is "Not Verified" and interestingly, those hwo could verify their status, 
+have the highest percentage of "Charged off" loans.
+
+
+------
+
+# Final Plots and Summary
+
+
+### Plot One
+```{r results='markup', Plot_One}
+ggplot(df_amount_grade, aes(x = dates, y = Loan_Amount))+
+  geom_area(aes(fill=grade))+
+  xlab("Issue Date")+
+  labs(title = "Total $ Amount of loans grouped by Grade")
+```
+
+### Description One
+
+The Total amount of loans has grown significantly since 2010, there was a 
+period of stagnation from 2008 to 2010 before it took some momentum. Grade B and 
+C are the most common loan grades and have become more so after 2015. There are 
+a few unusual spikes folowed by sharp declines in late 2014 that need a more
+comprehensive analysis to figure out the reason behind it. All in all the growth
+looks impressive and there does not seem to be any sign of weakness.
+
+### Plot Two
+```{r results='markup', Plot_Two}
+ggplot(data = subset(df, !is.na(int_rate)), aes(int_rate, color = grade))+
+  geom_histogram(bins = 50)+
+  facet_grid(grade ~ .)+
+  labs(title = "Interest Rate by Loan Grade")
+```
+
+### Description Two
+The plot shows the disctribution of Interest Rate by Loan Grade. It is kind of
+obvious that there are differences between grades in terms of interest rates.
+The grades A-C have significantly lower interest rates.
+
+### Plot Three
+```{r results='markup', Plot_Three}
+ggplot(data = subset(df, !is.na(verification_status)),
+       aes(verification_status, fill = loan_status,color = loan_status))+
+  geom_bar(position = "fill")+
+  labs(title = "Distribution of verification status by Loan Status")+
+  scale_y_continuous(labels = percent_format())
+```
+
+### Description Three
+
+As I previously mentioned, this plot shows a rather interesting observation.
+The "Verified" category has shown a higher percentage of "Charged off" loans 
+compared to the other 2 categories. What we would have expected before any deep
+analysis, could be the verified loans have a lower risk of default, but it does 
+not seem to be the case. Another important fact from this chart that I would
+like to point out is that the verified category has higher percentage of "LATE"s
+as well which is also counter-intuitive.
+
+# Reflection
+
+For this project I have used the Lending Club Loan Data. We downloaded the
+the dataset from Kaggle.com at this link:
+(https://www.kaggle.com/wendykan/lending-club-loan-data). This dataset contains
+complete loan data for all loans issued through 2007-2015,including the current
+loan status (Current, Late, Fully Paid, etc.) and latest payment information. 
+The file is a matrix of about 890 thousand observations and 75 variables. 
+I worked on this dataset and wrangled and partialy cleaned the data, then using
+great R functionalities and GGplot library I created some univariate analyses,
+some multi- and bi-variate analyses of the existing variables.
+Some of the findings were aligned with our initial expectations and some were a 
+little strange.
+I believe there are some very interesting insights that we could draw from the
+dataset by working extensively on the latest payments, installments, and also 
+fees. The other very interesting topic could be analysing the description of the
+loan applications and see what are the most successful terms we could use to 
+secure a loan. Another aspect that could be focused on is the job titles and
+investigate whether there is any significant pattern in the dataset.
+
+=======
